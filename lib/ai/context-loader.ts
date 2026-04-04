@@ -27,6 +27,7 @@ export type LoadedContextResult = {
     query: string;
     total_fetched: number;
     total_selected: number;
+    query_tokens: string[];
     selected_docs: {
       title: string;
       doc_type: string;
@@ -190,6 +191,7 @@ export async function loadAiContext({
         contextBlock: "Error loading context from database.",
         debug: { 
             query: normalizedQuestion, 
+            query_tokens: queryTokens,
             total_fetched: 0, 
             total_selected: 0,
             selected_docs: []
@@ -223,6 +225,7 @@ export async function loadAiContext({
       query: normalizedQuestion,
       total_fetched: rows.length,
       total_selected: ranked.length,
+      query_tokens: queryTokens,
       selected_docs: ranked.map(d => ({
           title: d.title,
           doc_type: d.docType,

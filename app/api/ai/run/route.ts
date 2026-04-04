@@ -163,6 +163,7 @@ ${loadedContext.contextBlock}
         input_tokens: execResult.inputTokens,
         output_tokens: execResult.outputTokens,
       },
+      retrieval_debug: loadedContext.debug,
       result: {
         format: normalized.format,
         text: normalized.text,
