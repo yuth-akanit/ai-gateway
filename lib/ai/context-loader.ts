@@ -25,8 +25,13 @@ export type LoadedContextResult = {
   contextBlock: string;
   debug: {
     query: string;
-    totalFetched: number;
-    totalSelected: number;
+    total_fetched: number;
+    total_selected: number;
+    selected_docs: {
+      title: string;
+      doc_type: string;
+      score: number;
+    }[];
   };
 };
 
@@ -183,7 +188,12 @@ export async function loadAiContext({
     return {
         items: [],
         contextBlock: "Error loading context from database.",
-        debug: { query: normalizedQuestion, totalFetched: 0, totalSelected: 0 }
+        debug: { 
+            query: normalizedQuestion, 
+            total_fetched: 0, 
+            total_selected: 0,
+            selected_docs: []
+        }
     };
   }
 
@@ -211,8 +221,13 @@ export async function loadAiContext({
     contextBlock,
     debug: {
       query: normalizedQuestion,
-      totalFetched: rows.length,
-      totalSelected: ranked.length,
+      total_fetched: rows.length,
+      total_selected: ranked.length,
+      selected_docs: ranked.map(d => ({
+          title: d.title,
+          doc_type: d.docType,
+          score: d.score
+      }))
     },
   };
 }
