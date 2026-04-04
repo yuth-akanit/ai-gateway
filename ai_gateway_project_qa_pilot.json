@@ -1,0 +1,317 @@
+{
+  "name": "AI Gateway - Project QA Pilot",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual_trigger_1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "gateway_url",
+              "value": "https://YOUR_GATEWAY_DOMAIN"
+            },
+            {
+              "name": "gateway_key",
+              "value": "REPLACE_WITH_SERVER_SIDE_SHARED_KEY"
+            },
+            {
+              "name": "mode",
+              "value": "answer"
+            },
+            {
+              "name": "task_type",
+              "value": "project_qa"
+            },
+            {
+              "name": "actor_id",
+              "value": "n8n-manual-pilot"
+            },
+            {
+              "name": "question",
+              "value": "What is the current architecture and next step of this project?"
+            },
+            {
+              "name": "project_code",
+              "value": "personal-ai-builder"
+            },
+            {
+              "name": "workflow_code",
+              "value": "project-qa-pilot"
+            },
+            {
+              "name": "doc_scope",
+              "value": "registry"
+            },
+            {
+              "name": "trace_prefix",
+              "value": "qa"
+            }
+          ],
+          "number": [
+            {
+              "name": "temperature",
+              "value": 0.2
+            },
+            {
+              "name": "max_output_tokens",
+              "value": 1200
+            }
+          ],
+          "boolean": [
+            {
+              "name": "include_context",
+              "value": true
+            }
+          ]
+        }
+      },
+      "id": "set_runtime_config_1",
+      "name": "Set Runtime Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;\nconst rand = Math.random().toString(36).slice(2, 8);\n\nconst question = ($json.question || '').trim();\nconst gatewayUrl = ($json.gateway_url || '').trim().replace(/\/$/, '');\nconst gatewayKey = ($json.gateway_key || '').trim();\nconst mode = ($json.mode || '').trim();\nconst taskType = ($json.task_type || '').trim();\nconst tracePrefix = ($json.trace_prefix || 'qa').trim();\nconst actorId = ($json.actor_id || 'n8n-manual-pilot').trim();\nconst projectCode = ($json.project_code || '').trim();\nconst workflowCode = ($json.workflow_code || '').trim();\nconst docScope = ($json.doc_scope || 'registry').trim();\nconst includeContext = Boolean($json.include_context);\nconst temperature = Number($json.temperature ?? 0.2);\nconst maxOutputTokens = Number($json.max_output_tokens ?? 1200);\n\nconst errors = [];\nif (!gatewayUrl) errors.push('gateway_url is required');\nif (!gatewayKey) errors.push('gateway_key is required');\nif (!question) errors.push('question is required');\nif (taskType !== 'project_qa') errors.push('task_type must be project_qa for this pilot');\nif (!['idea', 'answer', 'build'].includes(mode)) errors.push('mode must be one of idea, answer, build');\n\nconst traceId = `${tracePrefix}_${stamp}_${rand}`;\n\nconst requestPayload = {\n  trace_id: traceId,\n  mode,\n  task_type: taskType,\n  actor: {\n    type: 'system',\n    id: actorId\n  },\n  input: {\n    question\n  },\n  context: {\n    include_context: includeContext,\n    registry: {\n      project_codes: projectCode ? [projectCode] : [],\n      workflow_codes: workflowCode ? [workflowCode] : [],\n      doc_scope\n    }\n  },\n  options: {\n    temperature,\n    max_output_tokens: maxOutputTokens\n  },\n  metadata: {\n    source: 'n8n',\n    workflow_name: 'AI Gateway - Project QA Pilot',\n    workflow_version: 'v1',\n    manual_trigger: true\n  }\n};\n\nreturn [{\n  json: {\n    ...$json,\n    trace_id: traceId,\n    request_payload: requestPayload,\n    validation: {\n      ok: errors.length === 0,\n      errors\n    }\n  }\n}];"
+      },
+      "id": "code_validate_build_1",
+      "name": "Validate + Build Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.validation.ok }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "if_input_valid_1",
+      "name": "IF Input Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ok: false,\n    status: 'validation_failed',\n    is_retriable: false,\n    failure_stage: 'validation',\n    trace_id: $json.trace_id,\n    task_type: $json.task_type,\n    mode: $json.mode,\n    input_question: $json.question,\n    errors: $json.validation.errors,\n    request_preview: $json.request_payload\n  }\n}];"
+      },
+      "id": "code_validation_failed_1",
+      "name": "Build Validation Failure Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1290,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gateway_url + '/api/ai/run' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-ai-gateway-key",
+              "value": "={{ $json.gateway_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParametersJson": "={{ JSON.stringify($json.request_payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http_call_gateway_1",
+      "name": "Call AI Gateway",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1290,
+        180
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.ok }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "if_gateway_ok_1",
+      "name": "IF Gateway OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $json.result || $json.output || {};\nconst answer = result.answer || result.final_answer || result.text || null;\nconst citations = result.citations || [];\n\nreturn [{\n  json: {\n    ok: true,\n    status: 'completed',\n    is_retriable: false,\n    failure_stage: null,\n    trace_id: $json.trace_id || null,\n    run_id: $json.run_id || null,\n    provider: $json.provider || null,\n    model: $json.model || null,\n    mode: $json.mode || 'answer',\n    task_type: $json.task_type || 'project_qa',\n    answer,\n    citations,\n    raw_result: result,\n    gateway_response: $json\n  }\n}];"
+      },
+      "id": "code_normalize_success_1",
+      "name": "Normalize Success Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $json.error || {};\nconst message = err.message || $json.message || 'Gateway request failed';\n\nreturn [{\n  json: {\n    ok: false,\n    status: 'gateway_failed',\n    is_retriable: typeof $json.is_retriable === 'boolean' ? $json.is_retriable : true,\n    failure_stage: $json.failure_stage || err.stage || 'execution',\n    trace_id: $json.trace_id || null,\n    task_type: $json.task_type || 'project_qa',\n    mode: $json.mode || 'answer',\n    error_message: message,\n    error_detail: err,\n    gateway_response: $json\n  }\n}];"
+      },
+      "id": "code_normalize_failure_1",
+      "name": "Normalize Failure Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Runtime Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Runtime Config": {
+      "main": [
+        [
+          {
+            "node": "Validate + Build Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Build Request": {
+      "main": [
+        [
+          {
+            "node": "IF Input Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Input Valid?": {
+      "main": [
+        [
+          {
+            "node": "Call AI Gateway",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Failure Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call AI Gateway": {
+      "main": [
+        [
+          {
+            "node": "IF Gateway OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Gateway OK?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Success Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Failure Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "pilot-project-qa"
+  },
+  "active": false,
+  "versionId": "00000000-0000-0000-0000-000000000001",
+  "id": "AI-GATEWAY-PROJECT-QA-PILOT",
+  "tags": []
+}

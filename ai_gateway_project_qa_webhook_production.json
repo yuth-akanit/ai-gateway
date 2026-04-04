@@ -1,0 +1,394 @@
+{
+  "name": "AI Gateway - Project QA Webhook Production",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-gateway/project-qa",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "87e9db27-01d6-480c-993f-97e68499ab03"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "gateway_url",
+              "value": "https://your-domain.com"
+            },
+            {
+              "name": "gateway_key",
+              "value": "REPLACE_WITH_SECURE_CREDENTIAL"
+            },
+            {
+              "name": "default_actor_id",
+              "value": "n8n-webhook-project-qa"
+            },
+            {
+              "name": "mode",
+              "value": "answer"
+            },
+            {
+              "name": "task_type",
+              "value": "project_qa"
+            },
+            {
+              "name": "doc_scope",
+              "value": "registry"
+            },
+            {
+              "name": "workflow_name",
+              "value": "AI Gateway - Project QA Webhook Production"
+            },
+            {
+              "name": "workflow_version",
+              "value": "v1"
+            }
+          ],
+          "number": [
+            {
+              "name": "temperature",
+              "value": 0.2
+            },
+            {
+              "name": "max_output_tokens",
+              "value": 1200
+            }
+          ],
+          "boolean": [
+            {
+              "name": "include_context",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Set Runtime Defaults",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = items[0].json || {};\nconst body = input.body ?? input;\nconst question = typeof body.question === 'string' ? body.question.trim() : '';\nconst project_code = typeof body.project_code === 'string' ? body.project_code.trim() : '';\nconst workflow_code = typeof body.workflow_code === 'string' ? body.workflow_code.trim() : '';\nconst actor_id = typeof body.actor_id === 'string' && body.actor_id.trim()\n  ? body.actor_id.trim()\n  : (input.default_actor_id || 'n8n-webhook-project-qa');\nconst client_trace_id = typeof body.trace_id === 'string' ? body.trace_id.trim() : '';\nconst errors = [];\n\nif (!input.gateway_url || typeof input.gateway_url !== 'string') {\n  errors.push('gateway_url is required');\n}\nif (!input.gateway_key || typeof input.gateway_key !== 'string') {\n  errors.push('gateway_key is required');\n}\nif (!question) {\n  errors.push('question is required');\n}\nif (body.mode && body.mode !== 'answer') {\n  errors.push('mode is locked to answer for this pilot');\n}\nif (body.task_type && body.task_type !== 'project_qa') {\n  errors.push('task_type is locked to project_qa for this pilot');\n}\n\nconst now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;\nconst rand = Math.random().toString(36).slice(2, 8);\nconst trace_id = client_trace_id || `qa_${ts}_${rand}`;\n\nconst request_payload = {\n  trace_id,\n  mode: 'answer',\n  task_type: 'project_qa',\n  actor: {\n    type: 'system',\n    id: actor_id,\n  },\n  input: {\n    question,\n  },\n  context: {\n    include_context: Boolean(input.include_context),\n    registry: {\n      project_codes: project_code ? [project_code] : [],\n      workflow_codes: workflow_code ? [workflow_code] : [],\n      doc_scope: input.doc_scope || 'registry',\n    },\n  },\n  options: {\n    temperature: typeof input.temperature === 'number' ? input.temperature : 0.2,\n    max_output_tokens: typeof input.max_output_tokens === 'number' ? input.max_output_tokens : 1200,\n  },\n  metadata: {\n    source: 'n8n',\n    workflow_name: input.workflow_name || 'AI Gateway - Project QA Webhook Production',\n    workflow_version: input.workflow_version || 'v1',\n    trigger: 'webhook',\n    webhook_path: 'ai-gateway/project-qa',\n  },\n};\n\nreturn [{\n  json: {\n    ...input,\n    inbound_body: body,\n    trace_id,\n    question,\n    project_code,\n    workflow_code,\n    actor_id,\n    validation: {\n      ok: errors.length === 0,\n      errors,\n    },\n    request_payload,\n  }\n}];"
+      },
+      "id": "3",
+      "name": "Validate + Build Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.validation.ok }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4",
+      "name": "IF Input Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ok: false,\n    status: 'validation_failed',\n    is_retriable: false,\n    failure_stage: 'validation',\n    http_status: 400,\n    trace_id: $json.trace_id,\n    task_type: 'project_qa',\n    mode: 'answer',\n    errors: $json.validation?.errors || ['validation failed'],\n    request_preview: {\n      question: $json.question || '',\n      project_code: $json.project_code || '',\n      workflow_code: $json.workflow_code || '',\n      actor_id: $json.actor_id || '',\n    },\n  }\n}];"
+      },
+      "id": "5",
+      "name": "Build Validation Failure Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gateway_url + '/api/ai/run' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-ai-gateway-key",
+              "value": "={{ $json.gateway_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request_payload }}",
+        "options": {
+          "redirect": {
+            "followRedirects": true
+          },
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "ignoreResponseCode": true
+        }
+      },
+      "id": "6",
+      "name": "Call AI Gateway",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = items[0].json || {};\nconst statusCode = raw.statusCode || raw.status || 0;\nconst body = raw.body ?? {};\nreturn [{\n  json: {\n    gateway_http_status: statusCode,\n    gateway_headers: raw.headers || {},\n    gateway_body: body,\n    trace_id: body.trace_id || $json.trace_id || '',\n    ok: body.ok === true,\n    gateway_ok: body.ok === true,\n  }\n}];"
+      },
+      "id": "7",
+      "name": "Normalize Gateway Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.gateway_ok }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8",
+      "name": "IF Gateway OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1710,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.gateway_body || {};\nconst result = body.result || body.output || {};\nreturn [{\n  json: {\n    ok: true,\n    status: 'completed',\n    is_retriable: false,\n    failure_stage: null,\n    http_status: 200,\n    trace_id: body.trace_id || $json.trace_id || '',\n    run_id: body.run_id || result.run_id || null,\n    provider: body.provider || result.provider || null,\n    model: body.model || result.model || null,\n    mode: body.mode || 'answer',\n    task_type: body.task_type || 'project_qa',\n    answer: result.answer || body.answer || body.output_text || '',\n    citations: result.citations || body.citations || [],\n    raw_result: result,\n    gateway_response: body,\n  }\n}];"
+      },
+      "id": "9",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.gateway_body || {};\nconst httpStatus = Number($json.gateway_http_status || 0);\nconst failureStage = body.failure_stage || (httpStatus === 401 || httpStatus === 403 ? 'auth' : 'execution');\nconst status = body.status || 'gateway_failed';\nlet responseStatus = 502;\nif (failureStage === 'auth') responseStatus = 502;\nif (failureStage === 'validation') responseStatus = 400;\nif (httpStatus >= 400 && httpStatus < 500 && failureStage !== 'auth') responseStatus = 400;\n\nreturn [{\n  json: {\n    ok: false,\n    status,\n    is_retriable: body.is_retriable === true,\n    failure_stage: failureStage,\n    http_status: responseStatus,\n    trace_id: body.trace_id || $json.trace_id || '',\n    task_type: body.task_type || 'project_qa',\n    mode: body.mode || 'answer',\n    error_message: body.error_message || body.message || body.error || 'AI Gateway request failed',\n    error_detail: body.error_detail || body.details || body,\n    gateway_http_status: httpStatus,\n    gateway_response: body,\n  }\n}];"
+      },
+      "id": "10",
+      "name": "Build Failure Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": "={{ $json.http_status || 200 }}"
+        }
+      },
+      "id": "11",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2190,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Runtime Defaults",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Runtime Defaults": {
+      "main": [
+        [
+          {
+            "node": "Validate + Build Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Build Request": {
+      "main": [
+        [
+          {
+            "node": "IF Input Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Input Valid?": {
+      "main": [
+        [
+          {
+            "node": "Call AI Gateway",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Failure Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Validation Failure Output": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call AI Gateway": {
+      "main": [
+        [
+          {
+            "node": "Normalize Gateway Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Gateway Envelope": {
+      "main": [
+        [
+          {
+            "node": "IF Gateway OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Gateway OK?": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Failure Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1b15b600-4edf-45ee-b3b0-fbb716be0be8",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "3667",
+  "tags": []
+}
