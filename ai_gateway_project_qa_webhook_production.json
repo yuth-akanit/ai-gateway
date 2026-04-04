@@ -25,50 +25,50 @@
           "string": [
             {
               "name": "gateway_url",
-              "value": "https://your-domain.com"
+              "value": "https://YOUR-DOMAIN.COM"
             },
             {
               "name": "gateway_key",
-              "value": "REPLACE_WITH_SECURE_CREDENTIAL"
+              "value": "YOUR_REAL_GATEWAY_KEY"
             },
             {
-              "name": "default_actor_id",
-              "value": "n8n-webhook-project-qa"
-            },
-            {
-              "name": "mode",
+              "name": "default_mode",
               "value": "answer"
             },
             {
-              "name": "task_type",
+              "name": "default_task_type",
               "value": "project_qa"
             },
             {
-              "name": "doc_scope",
+              "name": "default_actor_id",
+              "value": "n8n-webhook"
+            },
+            {
+              "name": "default_project_code",
+              "value": "personal-ai-builder"
+            },
+            {
+              "name": "default_workflow_code",
+              "value": "project-qa-pilot"
+            },
+            {
+              "name": "default_doc_scope",
               "value": "registry"
-            },
-            {
-              "name": "workflow_name",
-              "value": "AI Gateway - Project QA Webhook Production"
-            },
-            {
-              "name": "workflow_version",
-              "value": "v1"
             }
           ],
           "number": [
             {
-              "name": "temperature",
+              "name": "default_temperature",
               "value": 0.2
             },
             {
-              "name": "max_output_tokens",
+              "name": "default_max_output_tokens",
               "value": 1200
             }
           ],
           "boolean": [
             {
-              "name": "include_context",
+              "name": "default_include_context",
               "value": true
             }
           ]
@@ -86,7 +86,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = items[0].json || {};\nconst body = input.body ?? input;\nconst question = typeof body.question === 'string' ? body.question.trim() : '';\nconst project_code = typeof body.project_code === 'string' ? body.project_code.trim() : '';\nconst workflow_code = typeof body.workflow_code === 'string' ? body.workflow_code.trim() : '';\nconst actor_id = typeof body.actor_id === 'string' && body.actor_id.trim()\n  ? body.actor_id.trim()\n  : (input.default_actor_id || 'n8n-webhook-project-qa');\nconst client_trace_id = typeof body.trace_id === 'string' ? body.trace_id.trim() : '';\nconst errors = [];\n\nif (!input.gateway_url || typeof input.gateway_url !== 'string') {\n  errors.push('gateway_url is required');\n}\nif (!input.gateway_key || typeof input.gateway_key !== 'string') {\n  errors.push('gateway_key is required');\n}\nif (!question) {\n  errors.push('question is required');\n}\nif (body.mode && body.mode !== 'answer') {\n  errors.push('mode is locked to answer for this pilot');\n}\nif (body.task_type && body.task_type !== 'project_qa') {\n  errors.push('task_type is locked to project_qa for this pilot');\n}\n\nconst now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;\nconst rand = Math.random().toString(36).slice(2, 8);\nconst trace_id = client_trace_id || `qa_${ts}_${rand}`;\n\nconst request_payload = {\n  trace_id,\n  mode: 'answer',\n  task_type: 'project_qa',\n  actor: {\n    type: 'system',\n    id: actor_id,\n  },\n  input: {\n    question,\n  },\n  context: {\n    include_context: Boolean(input.include_context),\n    registry: {\n      project_codes: project_code ? [project_code] : [],\n      workflow_codes: workflow_code ? [workflow_code] : [],\n      doc_scope: input.doc_scope || 'registry',\n    },\n  },\n  options: {\n    temperature: typeof input.temperature === 'number' ? input.temperature : 0.2,\n    max_output_tokens: typeof input.max_output_tokens === 'number' ? input.max_output_tokens : 1200,\n  },\n  metadata: {\n    source: 'n8n',\n    workflow_name: input.workflow_name || 'AI Gateway - Project QA Webhook Production',\n    workflow_version: input.workflow_version || 'v1',\n    trigger: 'webhook',\n    webhook_path: 'ai-gateway/project-qa',\n  },\n};\n\nreturn [{\n  json: {\n    ...input,\n    inbound_body: body,\n    trace_id,\n    question,\n    project_code,\n    workflow_code,\n    actor_id,\n    validation: {\n      ok: errors.length === 0,\n      errors,\n    },\n    request_payload,\n  }\n}];"
+        "jsCode": "const input = items[0].json || {};\nconst body = input.body ?? input;\nconst question = typeof body.question === 'string' ? body.question.trim() : '';\n\n// Resolve project/workflow codes with defaults\nconst project_code = (typeof body.project_code === 'string' && body.project_code.trim())\n  ? body.project_code.trim()\n  : (input.default_project_code || '');\n\nconst workflow_code = (typeof body.workflow_code === 'string' && body.workflow_code.trim())\n  ? body.workflow_code.trim()\n  : (input.default_workflow_code || '');\n\nconst actor_id = (typeof body.actor_id === 'string' && body.actor_id.trim())\n  ? body.actor_id.trim()\n  : (input.default_actor_id || 'n8n-webhook');\n\nconst mode = (typeof body.mode === 'string' && body.mode.trim())\n  ? body.mode.trim()\n  : (input.default_mode || 'answer');\n\nconst task_type = (typeof body.task_type === 'string' && body.task_type.trim())\n  ? body.task_type.trim()\n  : (input.default_task_type || 'project_qa');\n\nconst client_trace_id = typeof body.trace_id === 'string' ? body.trace_id.trim() : '';\nconst errors = [];\n\nif (!input.gateway_url || typeof input.gateway_url !== 'string') {\n  errors.push('gateway_url is required');\n}\nif (!input.gateway_key || typeof input.gateway_key !== 'string') {\n  errors.push('gateway_key is required');\n}\nif (!question) {\n  errors.push('question is required');\n}\n\n// Validation for pilot\nif (mode !== 'answer') {\n  errors.push('mode is locked to answer for this pilot');\n}\nif (task_type !== 'project_qa') {\n  errors.push('task_type is locked to project_qa for this pilot');\n}\n\nconst now = new Date();\nconst pad = (n) => String(n).padStart(2, '0');\nconst ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;\nconst rand = Math.random().toString(36).slice(2, 8);\nconst trace_id = client_trace_id || `qa_${ts}_${rand}`;\n\nconst request_payload = {\n  trace_id,\n  mode,\n  task_type,\n  actor: {\n    type: 'system',\n    id: actor_id,\n  },\n  input: {\n    question,\n  },\n  context: {\n    include_context: typeof body.include_context === 'boolean' ? body.include_context : Boolean(input.default_include_context),\n    registry: {\n      project_codes: project_code ? [project_code] : [],\n      workflow_codes: workflow_code ? [workflow_code] : [],\n      doc_scope: body.doc_scope || input.default_doc_scope || 'registry',\n    },\n  },\n  options: {\n    temperature: typeof body.temperature === 'number' ? body.temperature : (typeof input.default_temperature === 'number' ? input.default_temperature : 0.2),\n    max_output_tokens: typeof body.max_output_tokens === 'number' ? body.max_output_tokens : (typeof input.default_max_output_tokens === 'number' ? input.default_max_output_tokens : 1200),\n  },\n  metadata: {\n    source: 'n8n',\n    workflow_code: workflow_code,\n    project_code: project_code,\n    trigger: 'webhook',\n    webhook_path: 'ai-gateway/project-qa',\n  },\n};\n\nreturn [{\n  json: {\n    ...input,\n    inbound_body: body,\n    trace_id,\n    question,\n    project_code,\n    workflow_code,\n    actor_id,\n    validation: {\n      ok: errors.length === 0,\n      errors,\n    },\n    request_payload,\n  }\n}];"
       },
       "id": "3",
       "name": "Validate + Build Request",

@@ -63,20 +63,32 @@ export async function POST(req: NextRequest) {
 
     // 5) load retrieved context (Answer/Build)
     failureStage = "retrieval";
-    const retrievedContext = await loadAiContext({
+    const loadedContext = await loadAiContext({
       mode: payload.mode,
       taskType: payload.task_type,
       input: payload.input,
       context: payload.context,
     });
 
-    // 6) compose final payload
+    // 6) compose final payload (User Input)
     const userPayload = composeUserPayload({
       input: payload.input,
       context: payload.context,
-      retrieved: retrievedContext,
+      retrieved: loadedContext,
       constraints: payload.constraints,
     });
+
+    // 6.1) Final Prompt Assembly with Grounding
+    const groundedSystemPrompt = `
+${prompt.system_prompt}
+
+# GROUNDING INSTRUCTIONS
+Use the retrieved context below as the primary source of truth.
+If the answer is not supported by the context, explicitly say that information is insufficient.
+DO NOT hallucinate or invent system behaviors not found in the context.
+
+${loadedContext.contextBlock}
+    `.trim();
 
     // 7) choose model
     const model = await chooseModel(rule, payload);
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
     const execResult = await executeProvider({
       provider: model.provider,
       model: model.model_name,
-      systemPrompt: prompt.system_prompt,
+      systemPrompt: groundedSystemPrompt,
       developerPrompt: prompt.developer_prompt || undefined,
       userInput: userPayload as any,
       requireJson: Boolean(rule.require_json || payload.constraints?.require_json),
@@ -103,7 +115,10 @@ export async function POST(req: NextRequest) {
       model_name: execResult.model,
       prompt_key: prompt.prompt_key,
       prompt_version: prompt.version,
-      request_payload: userPayload,
+      request_payload: {
+          payload: userPayload,
+          retrieval_debug: loadedContext.debug
+      },
       response_payload: execResult,
       raw_text: execResult.rawText || null,
       input_tokens: execResult.inputTokens || null,
