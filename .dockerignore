@@ -5,5 +5,4 @@ node_modules
 .gitignore
 *.md
 Dockerfile
-package-lock.json
 README.md
