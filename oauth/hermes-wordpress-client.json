@@ -3,7 +3,7 @@
   "client_name": "PAA Hermes ai-team",
   "client_uri": "https://github.com/yuth-akanit/ai-gateway",
   "redirect_uris": [
-    "http://127.0.0.1:7665/callback"
+    "http://127.0.0.1:7665/oauth/callback"
   ],
   "grant_types": [
     "authorization_code",
